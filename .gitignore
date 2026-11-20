@@ -1,0 +1,43 @@
+# ===== Maxfiy fayllar (hech qachon GitHubga chiqmasin) =====
+.env
+.env.*
+!.env.example
+database/.secret_key
+
+# ===== Ma'lumotlar bazasi =====
+*.db
+*.db-*
+*.sqlite
+*.sqlite3
+database/*.db
+database/*.db-*
+database/*.sqlite*
+*.sql
+Koordinatorlar_backup.sql
+
+# ===== Python =====
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+build/
+dist/
+
+# ===== Node / testlar =====
+node_modules/
+package-lock.json
+shots/
+tmp/
+
+# ===== Tizim / muharrir =====
+.DS_Store
+Thumbs.db
+*.log
+.idea/
+.vscode/

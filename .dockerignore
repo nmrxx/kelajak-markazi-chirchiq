@@ -1,0 +1,14 @@
+.git
+.gitignore
+.venv
+venv
+__pycache__
+*.pyc
+.env
+database/*.db
+database/*.sqlite*
+database/.secret_key
+*.sql
+*.log
+/tmp
+.DS_Store

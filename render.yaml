@@ -1,0 +1,20 @@
+services:
+  - type: web
+    name: kelajak-markazi-chirchiq
+    runtime: python
+    plan: free
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn wsgi:app --bind 0.0.0.0:$PORT --workers 2 --threads 4 --timeout 60
+    envVars:
+      - key: SECRET_KEY
+        generateValue: true
+      - key: ADMIN_USERNAME
+        value: nmrxx
+      - key: ADMIN_PASSWORD
+        sync: false
+      - key: ADMIN_FULL_NAME
+        value: Kosimov Otabek
+      - key: COOKIE_SECURE
+        value: "1"
+      - key: PYTHON_VERSION
+        value: 3.12.8
