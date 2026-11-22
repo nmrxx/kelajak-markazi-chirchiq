@@ -8,7 +8,7 @@ Chirchiq shahridagi 26 ta maktab koordinatorlari uchun yagona reyting platformas
 - 26 ta maktab: ro'yxatdan o'tishda maktab tanlanadi va `10-Maktab Koordinator` kabi teg beriladi.
 - Umumiy dashbord: ism, maktab/teg, haftalik va umumiy ball, o'rin, ogohlantirishlar, qo'shilgan sana.
 - Profil/portfolio: avatar, bio, yutuqlar, qiziqishlar, shaxsiy o'rin va ballar.
-- Admin panel: ball berish (sabab bilan), xato ball yozuvlarini va ogohlantirishlarni o'chirish, tarixni ko'rish.
+- Admin panel: ball berish (sabab bilan), xato ball yozuvlarini, ogohlantirishlarni va foydalanuvchilarni o'chirish, tarixni ko'rish.
 - Parolni o'zgartirish — boshqa qurilmalardagi sessiyalar avtomatik yopiladi.
 - Mobil qurilmalar uchun moslashgan interfeys.
 

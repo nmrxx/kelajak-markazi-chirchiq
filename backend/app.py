@@ -473,6 +473,33 @@ def list_users():
     return jsonify([public_user_row(r) for r in rows]), 200
 
 
+@app.route("/api/users/<int:user_id>", methods=["DELETE"])
+def delete_user(user_id):
+    admin = admin_required()
+    if isinstance(admin, tuple):
+        return admin
+
+    if user_id == admin["id"]:
+        return jsonify({"error": "O'z akkauntingizni o'chira olmaysiz"}), 400
+
+    db = get_db()
+    row = db.execute("SELECT id, role FROM users WHERE id = ?", (user_id,)).fetchone()
+    if not row:
+        db.close()
+        return jsonify({"error": "Foydalanuvchi topilmadi"}), 404
+    if row["role"] == "super_admin":
+        db.close()
+        return jsonify({"error": "Bosh Koordinatorni o'chirib bo'lmaydi"}), 403
+
+    # Avval bog'langan yozuvlar, keyin foydalanuvchi (FK uchun)
+    db.execute("DELETE FROM user_scores WHERE user_id = ? OR issued_by = ?", (user_id, user_id))
+    db.execute("DELETE FROM warns WHERE user_id = ? OR issued_by = ?", (user_id, user_id))
+    db.execute("DELETE FROM users WHERE id = ?", (user_id,))
+    db.commit()
+    db.close()
+    return jsonify({"message": "Foydalanuvchi o'chirildi"}), 200
+
+
 # ---------- dashboard / leaderboard ----------
 @app.route("/api/leaderboard", methods=["GET"])
 def leaderboard():

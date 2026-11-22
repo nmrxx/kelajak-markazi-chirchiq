@@ -853,6 +853,7 @@ const app = {
                             : `<div style="display:flex;gap:7px;flex-wrap:wrap;">
                                    <button class="btn btn-primary btn-sm" data-score-id="${u.id}"><i class="fa-solid fa-plus"></i> Ball</button>
                                    <button class="btn btn-ghost btn-sm" data-warn-id="${u.id}"><i class="fa-solid fa-triangle-exclamation"></i> Ogohlantirish</button>
+                                   <button type="button" class="warn-delete" data-user-del="${u.id}" title="Foydalanuvchini o'chirish" aria-label="O'chirish"><i class="fa-solid fa-trash"></i></button>
                                </div>`;
                         return `
                             <tr>
@@ -878,6 +879,10 @@ const app = {
                         const user = users.find((u) => u.id === parseInt(btn.dataset.warnId, 10));
                         if (user) btn.addEventListener("click", () => this.openWarnModal(user));
                     });
+                    body.querySelectorAll("[data-user-del]").forEach((btn) => {
+                        const user = users.find((u) => u.id === parseInt(btn.dataset.userDel, 10));
+                        if (user) btn.addEventListener("click", () => this.openUserDeleteModal(user));
+                    });
                 }
             }
 
@@ -891,7 +896,8 @@ const app = {
                         const actions = self
                             ? '<span class="person-sub">Bu sizning akkauntingiz</span>'
                             : `<button class="btn btn-primary btn-sm" data-score-id="${u.id}"><i class="fa-solid fa-plus"></i> Ball</button>
-                               <button class="btn btn-ghost btn-sm" data-warn-id="${u.id}"><i class="fa-solid fa-triangle-exclamation"></i> Ogohlantirish</button>`;
+                               <button class="btn btn-ghost btn-sm" data-warn-id="${u.id}"><i class="fa-solid fa-triangle-exclamation"></i> Ogohlantirish</button>
+                               <button type="button" class="warn-delete" data-user-del="${u.id}" title="Foydalanuvchini o'chirish" aria-label="O'chirish"><i class="fa-solid fa-trash"></i></button>`;
                         return `
                             <div class="admin-card">
                                 <div class="admin-card-head">
@@ -918,6 +924,10 @@ const app = {
                     cards.querySelectorAll("[data-warn-id]").forEach((btn) => {
                         const user = users.find((u) => u.id === parseInt(btn.dataset.warnId, 10));
                         if (user) btn.addEventListener("click", () => this.openWarnModal(user));
+                    });
+                    cards.querySelectorAll("[data-user-del]").forEach((btn) => {
+                        const user = users.find((u) => u.id === parseInt(btn.dataset.userDel, 10));
+                        if (user) btn.addEventListener("click", () => this.openUserDeleteModal(user));
                     });
                 }
             }
@@ -1077,6 +1087,46 @@ const app = {
                         this.closeModal();
                         this.toast("Ogohlantirish o'chirildi");
                         this.loadAdmin();
+                        if (this.currentSection === "dashboard") this.loadDashboard();
+                    } else {
+                        this.toast(data?.error || "O'chirilmadi", "error");
+                    }
+                },
+            },
+        ]);
+    },
+
+    openUserDeleteModal(user) {
+        const html = `
+            <div class="modal-user">
+                ${this.avatarMarkup(user, "avatar-md")}
+                <div>
+                    <strong>${this.esc(user.full_name || user.username)}</strong>
+                    <span>@${this.esc(user.username)} · ${this.esc(user.tag)}</span>
+                </div>
+            </div>
+            <div class="admin-card-stats" style="margin-bottom:12px;">
+                <div><span>Ball</span><strong class="points ${this.pointsClass(user.total_points)}">${this.fmtPoints(user.total_points)}</strong></div>
+                <div><span>Ogohlantirish</span><strong class="warn-pill ${user.warns_count ? "" : "zero"}">${user.warns_count}</strong></div>
+            </div>
+            <p style="font-size:0.86rem;color:var(--muted);line-height:1.6;">
+                Bu foydalanuvchi <strong style="color:var(--red)">butunlay o'chiriladi</strong>:
+                akkaunt, barcha ballari va ogohlantirishlari. Bu amalni bekor qilib bo'lmaydi.
+                Davom etasizmi?
+            </p>
+        `;
+        this.showModal("Foydalanuvchini o'chirish", html, [
+            { label: "Bekor qilish", cls: "btn-ghost", onClick: () => this.closeModal() },
+            {
+                label: "O'chirish",
+                cls: "btn-danger",
+                onClick: async () => {
+                    const { res, data } = await this.api(`/users/${user.id}`, { method: "DELETE" });
+                    if (res.ok) {
+                        this.closeModal();
+                        this.toast("Foydalanuvchi o'chirildi");
+                        this.loadAdmin();
+                        if (this.currentSection === "history") this.loadHistory();
                         if (this.currentSection === "dashboard") this.loadDashboard();
                     } else {
                         this.toast(data?.error || "O'chirilmadi", "error");
