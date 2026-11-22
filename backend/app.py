@@ -1,14 +1,17 @@
+import io
 import json
 import os
 import re
 import secrets
 import threading
 import time
+import uuid
 from datetime import datetime, timedelta
 from urllib.parse import urlsplit
 
 from dotenv import load_dotenv
 from flask import Flask, abort, jsonify, request, send_from_directory, session
+from PIL import Image, ImageOps, UnidentifiedImageError
 from werkzeug.middleware.proxy_fix import ProxyFix
 from werkzeug.security import check_password_hash, generate_password_hash
 
@@ -18,6 +21,9 @@ load_dotenv()
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_DIR = os.path.dirname(BASE_DIR)
+UPLOAD_DIR = os.path.join(PROJECT_DIR, "uploads")
+REPORT_UPLOAD_DIR = os.path.join(UPLOAD_DIR, "reports")
+os.makedirs(REPORT_UPLOAD_DIR, exist_ok=True)
 
 
 def load_secret_key():
@@ -51,7 +57,7 @@ app.config.update(
     SESSION_COOKIE_SAMESITE="Lax",
     SESSION_COOKIE_SECURE=os.getenv("COOKIE_SECURE", "0") == "1",
     PERMANENT_SESSION_LIFETIME=timedelta(days=14),
-    MAX_CONTENT_LENGTH=1 * 1024 * 1024,
+    MAX_CONTENT_LENGTH=12 * 1024 * 1024,
 )
 app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1, x_proto=1, x_host=1)
 
@@ -97,6 +103,69 @@ def is_safe_image_url(value):
         return False
     parts = urlsplit(value)
     return parts.scheme in ("http", "https") and bool(parts.netloc)
+
+
+REPORT_IMAGE_LIMIT = 8 * 1024 * 1024
+REPORT_MAX_PENDING = 3
+
+
+def process_report_image(file_storage):
+    """Rasmni tekshiradi, EXIF tozalaydi va JPEG sifatida saqlaydi."""
+    if not file_storage or not file_storage.filename:
+        raise ValueError("Hisobotga rasm yuklang")
+    raw = file_storage.read()
+    if not raw:
+        raise ValueError("Rasm fayli bo'sh")
+    if len(raw) > REPORT_IMAGE_LIMIT:
+        raise ValueError("Rasm hajmi 8 MB dan oshmasligi kerak")
+
+    try:
+        with Image.open(io.BytesIO(raw)) as probe:
+            probe.verify()
+    except (UnidentifiedImageError, OSError, ValueError, Image.DecompressionBombError):
+        raise ValueError("Faqat JPG, PNG yoki WEBP rasm yuklash mumkin")
+
+    try:
+        with Image.open(io.BytesIO(raw)) as img:
+            img = ImageOps.exif_transpose(img)
+            if img.mode not in ("RGB", "L"):
+                img = img.convert("RGB")
+            if min(img.size) < 160:
+                raise ValueError("Rasm juda kichik (kamida 160x160 piksel)")
+            img.thumbnail((1600, 1600), Image.LANCZOS)
+            filename = f"{uuid.uuid4().hex}.jpg"
+            img.save(os.path.join(REPORT_UPLOAD_DIR, filename), "JPEG", quality=84, optimize=True)
+    except ValueError:
+        raise
+    except (OSError, Image.DecompressionBombError):
+        raise ValueError("Rasmni o'qishda xatolik. Boshqa rasm tanlang")
+
+    return f"reports/{filename}"
+
+
+def remove_report_image(image_path):
+    if not image_path:
+        return
+    name = os.path.basename(image_path)
+    full = os.path.join(REPORT_UPLOAD_DIR, name)
+    try:
+        if os.path.isfile(full):
+            os.remove(full)
+    except OSError:
+        pass
+
+
+def report_tag(row):
+    if isinstance(row, dict):
+        if row.get("role") == "super_admin":
+            return "Bosh Koordinator"
+        number = row.get("school_number")
+    else:
+        keys = row.keys()
+        if "role" in keys and row["role"] == "super_admin":
+            return "Bosh Koordinator"
+        number = row["school_number"]
+    return f"{number}-Maktab Koordinator" if number else "Koordinator"
 
 
 @app.before_request
@@ -218,7 +287,8 @@ def leaderboard_rows():
                   COALESCE(SUM(us.points), 0) AS total_points,
                   COUNT(us.id) AS transactions,
                   COALESCE(SUM(CASE WHEN date(us.created_at) BETWEEN ? AND ? THEN us.points ELSE 0 END), 0) AS week_points,
-                  (SELECT COUNT(*) FROM warns w WHERE w.user_id = u.id) AS warns_count
+                  (SELECT COUNT(*) FROM warns w WHERE w.user_id = u.id) AS warns_count,
+                  (SELECT COUNT(*) FROM reports r WHERE r.user_id = u.id AND r.status = 'approved') AS reports_count
            FROM users u
            LEFT JOIN schools s ON s.id = u.school_id
            LEFT JOIN user_scores us ON us.user_id = u.id
@@ -492,11 +562,18 @@ def delete_user(user_id):
         return jsonify({"error": "Bosh Koordinatorni o'chirib bo'lmaydi"}), 403
 
     # Avval bog'langan yozuvlar, keyin foydalanuvchi (FK uchun)
+    reports = db.execute("SELECT id, image_path FROM reports WHERE user_id = ?", (user_id,)).fetchall()
+    db.execute("DELETE FROM report_likes WHERE report_id IN (SELECT id FROM reports WHERE user_id = ?)", (user_id,))
+    db.execute("DELETE FROM report_likes WHERE user_id = ?", (user_id,))
+    db.execute("DELETE FROM user_scores WHERE report_id IN (SELECT id FROM reports WHERE user_id = ?)", (user_id,))
+    db.execute("DELETE FROM reports WHERE user_id = ?", (user_id,))
     db.execute("DELETE FROM user_scores WHERE user_id = ? OR issued_by = ?", (user_id, user_id))
     db.execute("DELETE FROM warns WHERE user_id = ? OR issued_by = ?", (user_id, user_id))
     db.execute("DELETE FROM users WHERE id = ?", (user_id,))
     db.commit()
     db.close()
+    for report in reports:
+        remove_report_image(report["image_path"])
     return jsonify({"message": "Foydalanuvchi o'chirildi"}), 200
 
 
@@ -530,6 +607,8 @@ def dashboard_stats():
         (start, end),
     ).fetchone()[0]
     total_warns = db.execute("SELECT COUNT(*) FROM warns").fetchone()[0]
+    total_reports = db.execute("SELECT COUNT(*) FROM reports WHERE status = 'approved'").fetchone()[0]
+    pending_reports = db.execute("SELECT COUNT(*) FROM reports WHERE status = 'pending'").fetchone()[0]
     db.close()
 
     board = leaderboard_rows()
@@ -539,6 +618,8 @@ def dashboard_stats():
         "total_points": total_points,
         "points_this_week": week_points,
         "total_warns": total_warns,
+        "total_reports": total_reports,
+        "pending_reports": pending_reports,
         "week_start": start,
         "week_end": end,
         "top_user": board[0] if board else None,
@@ -666,11 +747,13 @@ def delete_score(score_id):
         return admin
 
     db = get_db()
-    row = db.execute("SELECT id FROM user_scores WHERE id = ?", (score_id,)).fetchone()
+    row = db.execute("SELECT id, report_id FROM user_scores WHERE id = ?", (score_id,)).fetchone()
     if not row:
         db.close()
         return jsonify({"error": "Ball yozuvi topilmadi"}), 404
 
+    if row["report_id"]:
+        db.execute("UPDATE reports SET points_awarded = 0 WHERE id = ?", (row["report_id"],))
     db.execute("DELETE FROM user_scores WHERE id = ?", (score_id,))
     db.commit()
     db.close()
@@ -777,6 +860,252 @@ def delete_warn(warn_id):
     db.commit()
     db.close()
     return jsonify({"message": "Ogohlantirish o'chirildi"}), 200
+
+
+# ---------- reports ----------
+REPORT_SELECT = """
+SELECT r.id, r.user_id, r.title, r.body, r.image_path, r.status,
+       r.points_awarded, r.review_note, r.reviewed_at, r.created_at,
+       u.username, u.full_name, u.avatar_url, s.school_number, u.role,
+       (SELECT COUNT(*) FROM report_likes l WHERE l.report_id = r.id) AS likes_count,
+       (SELECT COUNT(*) FROM report_likes l WHERE l.report_id = r.id AND l.user_id = ?) AS liked
+FROM reports r
+JOIN users u ON u.id = r.user_id
+LEFT JOIN schools s ON s.id = u.school_id
+"""
+
+
+def report_payload(row):
+    item = dict(row)
+    item["author_name"] = item.get("full_name") or item.get("username")
+    item["tag"] = report_tag(item)
+    item["image_url"] = f"/uploads/{item['image_path']}" if item.get("image_path") else ""
+    item["liked"] = bool(item.pop("liked", 0))
+    item["likes"] = int(item.pop("likes_count", 0) or 0)
+    return item
+
+
+@app.route("/api/reports/feed", methods=["GET"])
+def reports_feed():
+    u = auth_required()
+    if isinstance(u, tuple):
+        return u
+
+    try:
+        limit = max(1, min(30, int(request.args.get("limit", 12))))
+        offset = max(0, int(request.args.get("offset", 0)))
+    except (TypeError, ValueError):
+        limit, offset = 12, 0
+
+    db = get_db()
+    rows = db.execute(
+        REPORT_SELECT + " WHERE r.status = 'approved' ORDER BY r.created_at DESC, r.id DESC LIMIT ? OFFSET ?",
+        (u["id"], limit, offset),
+    ).fetchall()
+    total = db.execute("SELECT COUNT(*) FROM reports WHERE status = 'approved'").fetchone()[0]
+    db.close()
+    return jsonify({"reports": [report_payload(r) for r in rows], "total": total}), 200
+
+
+@app.route("/api/reports/mine", methods=["GET"])
+def reports_mine():
+    u = auth_required()
+    if isinstance(u, tuple):
+        return u
+
+    db = get_db()
+    rows = db.execute(
+        REPORT_SELECT + " WHERE r.user_id = ? ORDER BY r.created_at DESC, r.id DESC LIMIT 50",
+        (u["id"], u["id"]),
+    ).fetchall()
+    db.close()
+    return jsonify([report_payload(r) for r in rows]), 200
+
+
+@app.route("/api/reports", methods=["GET"])
+def reports_admin_list():
+    admin = admin_required()
+    if isinstance(admin, tuple):
+        return admin
+
+    status = (request.args.get("status") or "pending").strip().lower()
+    if status not in ("pending", "approved", "rejected", "all"):
+        return jsonify({"error": "Noto'g'ri holat"}), 400
+
+    db = get_db()
+    if status == "all":
+        rows = db.execute(
+            REPORT_SELECT
+            + " ORDER BY CASE WHEN r.status = 'pending' THEN 0 ELSE 1 END, r.created_at DESC, r.id DESC LIMIT 100",
+            (admin["id"],),
+        ).fetchall()
+    else:
+        rows = db.execute(
+            REPORT_SELECT + " WHERE r.status = ? ORDER BY r.created_at DESC, r.id DESC LIMIT 100",
+            (admin["id"], status),
+        ).fetchall()
+    counts = {
+        row["status"]: row["n"]
+        for row in db.execute("SELECT status, COUNT(*) AS n FROM reports GROUP BY status").fetchall()
+    }
+    db.close()
+    return jsonify({"reports": [report_payload(r) for r in rows], "counts": counts}), 200
+
+
+@app.route("/api/reports", methods=["POST"])
+def create_report():
+    u = auth_required()
+    if isinstance(u, tuple):
+        return u
+
+    title = (request.form.get("title") or "").strip()
+    body = (request.form.get("body") or "").strip()
+    if len(title) < 3 or len(title) > 100:
+        return jsonify({"error": "Sarlavha 3-100 belgi bo'lishi kerak"}), 400
+    if len(body) < 10 or len(body) > 2000:
+        return jsonify({"error": "Matn 10-2000 belgi bo'lishi kerak"}), 400
+
+    db = get_db()
+    pending = db.execute(
+        "SELECT COUNT(*) FROM reports WHERE user_id = ? AND status = 'pending'", (u["id"],)
+    ).fetchone()[0]
+    if pending >= REPORT_MAX_PENDING:
+        db.close()
+        return jsonify({"error": f"Sizda {REPORT_MAX_PENDING} ta tekshirilmagan hisobot bor. Avval javob kuting"}), 429
+
+    try:
+        image_path = process_report_image(request.files.get("image"))
+    except ValueError as exc:
+        db.close()
+        return jsonify({"error": str(exc)}), 400
+
+    cur = db.execute(
+        "INSERT INTO reports (user_id, title, body, image_path) VALUES (?, ?, ?, ?)",
+        (u["id"], title, body, image_path),
+    )
+    db.commit()
+    report_id = cur.lastrowid
+    db.close()
+    return jsonify({"message": "Hisobot yuborildi. Bosh Koordinator tekshirgach e'lon qilinadi", "id": report_id}), 201
+
+
+@app.route("/api/reports/<int:report_id>/review", methods=["POST"])
+def review_report(report_id):
+    admin = admin_required()
+    if isinstance(admin, tuple):
+        return admin
+
+    data = request.get_json(silent=True) or {}
+    action = (data.get("action") or "").strip().lower()
+    note = (data.get("note") or "").strip()[:300]
+    if action not in ("approve", "reject"):
+        return jsonify({"error": "Amal noto'g'ri"}), 400
+
+    db = get_db()
+    report = db.execute("SELECT * FROM reports WHERE id = ?", (report_id,)).fetchone()
+    if not report:
+        db.close()
+        return jsonify({"error": "Hisobot topilmadi"}), 404
+    if report["status"] != "pending":
+        db.close()
+        return jsonify({"error": "Bu hisobot allaqachon ko'rib chiqilgan"}), 400
+
+    if action == "approve":
+        try:
+            points = int(data.get("points"))
+        except (TypeError, ValueError):
+            db.close()
+            return jsonify({"error": "Ball raqam bo'lishi kerak"}), 400
+        if points < 1 or points > 100:
+            db.close()
+            return jsonify({"error": "Hisobot uchun ball 1 dan 100 gacha"}), 400
+
+        cur = db.execute(
+            """UPDATE reports SET status = 'approved', points_awarded = ?, review_note = ?,
+                      reviewed_by = ?, reviewed_at = CURRENT_TIMESTAMP WHERE id = ? AND status = 'pending'""",
+            (points, note, admin["id"], report_id),
+        )
+        if cur.rowcount != 1:
+            db.rollback()
+            db.close()
+            return jsonify({"error": "Bu hisobot allaqachon ko'rib chiqilgan"}), 400
+        db.execute(
+            "INSERT INTO user_scores (user_id, issued_by, points, reason, report_id) VALUES (?, ?, ?, ?, ?)",
+            (report["user_id"], admin["id"], points, f"Hisobot: {report['title']}"[:300], report_id),
+        )
+        message = "Hisobot tasdiqlandi va e'lon qilindi"
+    else:
+        cur = db.execute(
+            """UPDATE reports SET status = 'rejected', points_awarded = 0, review_note = ?,
+                      reviewed_by = ?, reviewed_at = CURRENT_TIMESTAMP WHERE id = ? AND status = 'pending'""",
+            (note, admin["id"], report_id),
+        )
+        if cur.rowcount != 1:
+            db.rollback()
+            db.close()
+            return jsonify({"error": "Bu hisobot allaqachon ko'rib chiqilgan"}), 400
+        message = "Hisobot rad etildi"
+
+    db.commit()
+    db.close()
+    return jsonify({"message": message}), 200
+
+
+@app.route("/api/reports/<int:report_id>/like", methods=["POST"])
+def like_report(report_id):
+    u = auth_required()
+    if isinstance(u, tuple):
+        return u
+
+    db = get_db()
+    row = db.execute("SELECT status FROM reports WHERE id = ?", (report_id,)).fetchone()
+    if not row or row["status"] != "approved":
+        db.close()
+        return jsonify({"error": "Hisobot topilmadi"}), 404
+
+    liked = db.execute(
+        "SELECT 1 FROM report_likes WHERE report_id = ? AND user_id = ?", (report_id, u["id"])
+    ).fetchone()
+    if liked:
+        db.execute("DELETE FROM report_likes WHERE report_id = ? AND user_id = ?", (report_id, u["id"]))
+    else:
+        db.execute("INSERT INTO report_likes (report_id, user_id) VALUES (?, ?)", (report_id, u["id"]))
+    db.commit()
+    likes = db.execute("SELECT COUNT(*) FROM report_likes WHERE report_id = ?", (report_id,)).fetchone()[0]
+    db.close()
+    return jsonify({"liked": not liked, "likes": likes}), 200
+
+
+@app.route("/api/reports/<int:report_id>", methods=["DELETE"])
+def delete_report(report_id):
+    u = auth_required()
+    if isinstance(u, tuple):
+        return u
+
+    db = get_db()
+    report = db.execute("SELECT id, user_id, status, image_path FROM reports WHERE id = ?", (report_id,)).fetchone()
+    if not report:
+        db.close()
+        return jsonify({"error": "Hisobot topilmadi"}), 404
+
+    is_admin = u["role"] == "super_admin"
+    is_owner = report["user_id"] == u["id"]
+    if not is_admin and not (is_owner and report["status"] != "approved"):
+        db.close()
+        return jsonify({"error": "Ruxsat yo'q"}), 403
+
+    db.execute("DELETE FROM report_likes WHERE report_id = ?", (report_id,))
+    db.execute("DELETE FROM user_scores WHERE report_id = ?", (report_id,))
+    db.execute("DELETE FROM reports WHERE id = ?", (report_id,))
+    db.commit()
+    db.close()
+    remove_report_image(report["image_path"])
+    return jsonify({"message": "Hisobot o'chirildi"}), 200
+
+
+@app.route("/uploads/<path:filename>")
+def uploaded_file(filename):
+    return send_from_directory(UPLOAD_DIR, filename, max_age=60 * 60 * 24)
 
 
 # ---------- health ----------

@@ -97,6 +97,40 @@ def init_db():
     """)
 
     c.execute("""
+        CREATE TABLE IF NOT EXISTS reports (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INT NOT NULL,
+            title TEXT NOT NULL,
+            body TEXT NOT NULL,
+            image_path TEXT DEFAULT '',
+            status TEXT DEFAULT 'pending',
+            points_awarded INT DEFAULT 0,
+            review_note TEXT DEFAULT '',
+            reviewed_by INT,
+            reviewed_at TIMESTAMP,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        )
+    """)
+
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS report_likes (
+            report_id INT NOT NULL,
+            user_id INT NOT NULL,
+            created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+            PRIMARY KEY (report_id, user_id),
+            FOREIGN KEY (report_id) REFERENCES reports(id),
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        )
+    """)
+
+    score_columns = {r[1] for r in c.execute("PRAGMA table_info(user_scores)").fetchall()}
+    if "report_id" not in score_columns:
+        c.execute("ALTER TABLE user_scores ADD COLUMN report_id INT")
+
+    c.execute("CREATE INDEX IF NOT EXISTS idx_reports_status ON reports(status, created_at)")
+
+    c.execute("""
         CREATE TABLE IF NOT EXISTS settings (
             setting_key TEXT UNIQUE NOT NULL,
             setting_value TEXT NOT NULL

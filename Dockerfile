@@ -12,7 +12,7 @@ COPY backend ./backend
 COPY frontend ./frontend
 COPY wsgi.py .
 
-RUN mkdir -p database
+RUN mkdir -p database uploads/reports
 
 EXPOSE 8000
 

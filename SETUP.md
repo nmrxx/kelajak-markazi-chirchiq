@@ -1,6 +1,6 @@
 # Kelajak Markazi Chirchiq
 
-Chirchiq shahridagi 26 ta maktab koordinatorlari uchun yagona reyting platformasi: umumiy peshtaxta, shaxsiy portfolio, haftalik/umumiy ballar, ogohlantirishlar va faqat Bosh Koordinator uchun admin panel.
+Chirchiq shahridagi 26 ta maktab koordinatorlari uchun yagona reyting platformasi: umumiy peshtaxta, shaxsiy portfolio, haftalik/umumiy ballar, ogohlantirishlar, rasmli hisobotlar lentasi va faqat Bosh Koordinator uchun admin panel.
 
 ## Imkoniyatlar
 
@@ -8,13 +8,14 @@ Chirchiq shahridagi 26 ta maktab koordinatorlari uchun yagona reyting platformas
 - 26 ta maktab: ro'yxatdan o'tishda maktab tanlanadi va `10-Maktab Koordinator` kabi teg beriladi.
 - Umumiy dashbord: ism, maktab/teg, haftalik va umumiy ball, o'rin, ogohlantirishlar, qo'shilgan sana.
 - Profil/portfolio: avatar, bio, yutuqlar, qiziqishlar, shaxsiy o'rin va ballar.
-- Admin panel: ball berish (sabab bilan), xato ball yozuvlarini, ogohlantirishlarni va foydalanuvchilarni o'chirish, tarixni ko'rish.
+- **Hisobotlar**: ishtirokchi rasm va matn yuboradi → Bosh Koordinator tekshiradi → tasdiqlansa ball beriladi va post ommaviy lentada chiqadi. Postlarni yoqtirish (layk) mumkin.
+- Admin panel: hisobotlarni tasdiqlash/rad etish, ball berish (sabab bilan), xato ball yozuvlarini, ogohlantirishlarni va foydalanuvchilarni o'chirish, tarixni ko'rish.
 - Parolni o'zgartirish — boshqa qurilmalardagi sessiyalar avtomatik yopiladi.
 - Mobil qurilmalar uchun moslashgan interfeys.
 
 ## Texnologiyalar
 
-- Backend: Python 3.12+, Flask 3, SQLite, Gunicorn
+- Backend: Python 3.10+, Flask 3, SQLite, Gunicorn, Pillow (rasmni qayta ishlash)
 - Frontend: HTML, CSS, vanilla JavaScript (build talab qilinmaydi)
 
 ## Loyiha tuzilishi
@@ -27,7 +28,9 @@ frontend/
   index.html
   style.css
   script.js
+  assets/         # logo va favicon
 database/         # SQLite fayli (gitga tushmaydi)
+uploads/reports/  # yuklangan rasmlar (gitga tushmaydi, avtomatik yaratiladi)
 wsgi.py           # Gunicorn uchun kirish nuqtasi
 requirements.txt
 .env.example
@@ -117,6 +120,17 @@ git push -u origin main
    ```
 6. **Reload** tugmasini bosing. Sayt `https://USERNAME.pythonanywhere.com` da ochiladi.
 
+### Yangilanishni o'rnatish (PythonAnywhere)
+
+```bash
+cd ~/kelajak-markazi-chirchiq
+git pull
+source ~/.virtualenvs/kelajak/bin/activate
+pip install -r requirements.txt
+```
+
+Keyin **Web → Reload**. `init_db()` ishga tushganda yangi jadvallar (`reports`, `report_likes`) va `user_scores.report_id` ustuni avtomatik qo'shiladi. `uploads/` papkasi ham avtomatik yaratiladi — u gitda saqlanmaydi, shuning uchun yangilashda o'chirib yubormang.
+
 ### 2) Render (bepul, lekin SQLite vaqtinchalik)
 
 1. GitHub repo ni Render ga ulang.
@@ -132,7 +146,9 @@ git push -u origin main
 
 ```bash
 docker build -t kelajak-markazi .
-docker run -p 8000:8000 --env-file .env -v "$PWD/database:/app/database" kelajak-markazi
+docker run -p 8000:8000 --env-file .env \
+  -v "$PWD/database:/app/database" \
+  -v "$PWD/uploads:/app/uploads" kelajak-markazi
 ```
 
 Sayt: http://localhost:8000
@@ -146,6 +162,7 @@ Sayt: http://localhost:8000
 - Parol o'zgarganda barcha eski sessiyalar bekor qilinadi (`session_version`).
 - Barcha o'zgartiruvchi so'rovlar `Origin` tekshiruvi orqali himoyalangan (CSRF).
 - CSP, `X-Frame-Options`, `nosniff`, `Referrer-Policy` sarlavhalari qo'shilgan.
+- Yuklangan rasmlar Pillow bilan qayta ishlanadi: faqat JPG/PNG/WEBP, 8 MB gacha, EXIF tozalanadi, o'lchami cheklanadi. Rasm yo'llari tasodifiy nom bilan saqlanadi.
 - SQL so'rovlari parametrlangan; foydalanuvchi kiritmalari uzunligi va formati tekshiriladi.
 - Ro'yxatdan o'tishda faqat `user` roli beriladi; admin loginlari (`admin`, `root`, `nmrxx` va h.k.) band qilinmaydi.
 - `.env`, baza fayllari va SQL dump lar `.gitignore` orqali yopilgan.
@@ -154,8 +171,9 @@ Sayt: http://localhost:8000
 
 ```bash
 # Admin parolini almashtirish (sayt orqali Profil → Parolni o'zgartirish)
-# Baza zaxira nusxasi
-cp database/chirchiq_rating.db database/backup-$(date +%F).db
+# Baza va rasmlar zaxira nusxasi (uy papkasiga)
+cp database/chirchiq_rating.db ~/chirchiq-backup-$(date +%F).db
+tar -czf ~/chirchiq-uploads-$(date +%F).tar.gz uploads/
 
 # Sinxron ishga tushirish
 python backend/app.py
