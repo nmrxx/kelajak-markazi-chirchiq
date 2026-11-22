@@ -8,24 +8,37 @@
     <meta name="description" content="Kelajak Markazi Chirchiq — maktab koordinatorlari reytingi, hisobotlari va portfoliolari">
 
     <link rel="icon" type="image/png" href="assets/favicon.png">
+    <script>
+        (function () {
+            try {
+                var saved = localStorage.getItem("kmc-theme");
+                document.documentElement.dataset.theme = (saved === "light" || saved === "dark") ? saved : "dark";
+            } catch (e) {
+                document.documentElement.dataset.theme = "dark";
+            }
+        })();
+    </script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Sora:wght@500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
-    <link rel="stylesheet" href="style.css?v=17">
+    <link rel="stylesheet" href="style.css?v=19">
 </head>
 <body>
 
 <!-- ================= AUTH ================= -->
 <div id="auth-pages" class="auth-pages">
+    <button type="button" class="theme-toggle theme-toggle-floating" data-theme-toggle aria-label="Tema o'zgartirish" title="Tema o'zgartirish">
+        <i class="fa-solid fa-moon"></i>
+    </button>
     <!-- LOGIN -->
     <div id="page-login" class="auth-page active">
         <div class="auth-shell">
             <aside class="auth-visual">
                 <div class="grid-glow" aria-hidden="true"></div>
                 <div class="brand-row">
-                    <img class="logo-auth" src="assets/logo.png" alt="Kelajak Markazlari">
+                    <img class="logo-auth" src="assets/logo.png" data-logo alt="Kelajak Markazlari">
                 </div>
 
                 <h1 class="visual-heading">Bilim, intilish va <span>yutuqlar</span> maydoni</h1>
@@ -46,7 +59,7 @@
 
             <main class="auth-form-panel">
                 <div class="mobile-brand">
-                    <img class="logo-auth small" src="assets/logo.png" alt="Kelajak Markazlari">
+                    <img class="logo-auth small" src="assets/logo.png" data-logo alt="Kelajak Markazlari">
                 </div>
                 <div class="auth-card">
                     <div class="auth-head">
@@ -108,7 +121,7 @@
             <aside class="auth-visual register-visual">
                 <div class="grid-glow" aria-hidden="true"></div>
                 <div class="brand-row">
-                    <img class="logo-auth" src="assets/logo.png" alt="Kelajak Markazlari">
+                    <img class="logo-auth" src="assets/logo.png" data-logo alt="Kelajak Markazlari">
                 </div>
 
                 <h1 class="visual-heading">O'z maktabingiz <span>faxri</span> bo'ling</h1>
@@ -129,7 +142,7 @@
 
             <main class="auth-form-panel">
                 <div class="mobile-brand">
-                    <img class="logo-auth small" src="assets/logo.png" alt="Kelajak Markazlari">
+                    <img class="logo-auth small" src="assets/logo.png" data-logo alt="Kelajak Markazlari">
                 </div>
                 <div class="auth-card">
                     <div class="auth-head">
@@ -212,7 +225,7 @@
     <header class="topbar">
         <div class="topbar-inner">
             <a class="brand" href="#" onclick="app.showSection('dashboard'); return false;" aria-label="Kelajak Markazi Chirchiq">
-                <img src="assets/logo.png" alt="Kelajak Markazlari">
+                <img src="assets/logo.png" data-logo alt="Kelajak Markazlari">
             </a>
 
             <nav class="topnav" id="topnav">
@@ -225,6 +238,9 @@
 
             <div class="topbar-right">
                 <div class="date-chip"><i class="fa-regular fa-clock"></i><span id="live-date"></span></div>
+                <button type="button" class="icon-btn theme-toggle" data-theme-toggle aria-label="Tema o'zgartirish" title="Tema o'zgartirish">
+                    <i class="fa-solid fa-moon"></i>
+                </button>
                 <button type="button" class="user-chip" id="user-menu-btn" aria-label="Foydalanuvchi menyusi">
                     <span class="avatar avatar-sm" id="topbar-avatar"></span>
                     <span class="user-chip-info">
@@ -272,7 +288,7 @@
                     <div><div class="stat-value" id="stat-schools">26</div><div class="stat-label">Maktablar</div></div>
                 </div>
                 <div class="stat-card">
-                    <div class="stat-icon lime"><i class="fa-solid fa-star"></i></div>
+                    <div class="stat-icon accent"><i class="fa-solid fa-star"></i></div>
                     <div><div class="stat-value" id="stat-points">0</div><div class="stat-label">Umumiy ball</div></div>
                 </div>
                 <div class="stat-card">
@@ -489,7 +505,7 @@
             </div>
 
             <div class="stats-grid admin-stats">
-                <div class="stat-card"><div class="stat-icon lime"><i class="fa-solid fa-inbox"></i></div><div><div class="stat-value" id="admin-stat-pending">0</div><div class="stat-label">Kutilayotgan hisobot</div></div></div>
+                <div class="stat-card"><div class="stat-icon accent"><i class="fa-solid fa-inbox"></i></div><div><div class="stat-value" id="admin-stat-pending">0</div><div class="stat-label">Kutilayotgan hisobot</div></div></div>
                 <div class="stat-card"><div class="stat-icon sky"><i class="fa-solid fa-users"></i></div><div><div class="stat-value" id="admin-stat-users">0</div><div class="stat-label">Ishtirokchilar</div></div></div>
                 <div class="stat-card"><div class="stat-icon purple"><i class="fa-solid fa-star"></i></div><div><div class="stat-value" id="admin-stat-points">0</div><div class="stat-label">Berilgan ball</div></div></div>
                 <div class="stat-card"><div class="stat-icon red"><i class="fa-solid fa-triangle-exclamation"></i></div><div><div class="stat-value" id="admin-stat-warns">0</div><div class="stat-label">Ogohlantirishlar</div></div></div>
@@ -547,6 +563,6 @@
     </main>
 </div>
 
-<script src="script.js?v=17"></script>
+<script src="script.js?v=19"></script>
 </body>
 </html>

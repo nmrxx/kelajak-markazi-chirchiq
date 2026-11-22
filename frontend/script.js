@@ -7,6 +7,7 @@ const API = "/api";
 const app = {
     currentUser: null,
     currentSection: "dashboard",
+    theme: "dark",
     schools: [],
     clockTimer: null,
     reportTab: "feed",
@@ -17,6 +18,7 @@ const app = {
 
     /* ============== INIT ============== */
     init() {
+        this.applyTheme(document.documentElement.dataset.theme || "dark", false);
         this.bindUI();
         this.bindForms();
         this.startClock();
@@ -182,8 +184,43 @@ const app = {
         }, 2400);
     },
 
+    /* ============== THEME ============== */
+    applyTheme(theme, persist = true) {
+        const next = theme === "light" ? "light" : "dark";
+        this.theme = next;
+        document.documentElement.dataset.theme = next;
+
+        if (persist) {
+            try { localStorage.setItem("kmc-theme", next); } catch (_) {}
+        }
+        const meta = document.querySelector('meta[name="theme-color"]');
+        if (meta) meta.setAttribute("content", next === "light" ? "#f3f6fc" : "#080d18");
+
+        const label = next === "light"
+            ? "Tema: oq. Qorong'u temaga o'tish"
+            : "Tema: qorong'u. Oq temaga o'tish";
+        document.querySelectorAll("[data-theme-toggle]").forEach((btn) => {
+            const icon = btn.querySelector("i");
+            if (icon) icon.className = next === "light" ? "fa-solid fa-sun" : "fa-solid fa-moon";
+            btn.setAttribute("aria-label", label);
+            btn.setAttribute("title", label);
+        });
+
+        const logo = next === "light" ? "assets/logo-dark.png" : "assets/logo.png";
+        document.querySelectorAll("[data-logo]").forEach((img) => {
+            if (img.getAttribute("src") !== logo) img.setAttribute("src", logo);
+        });
+    },
+
+    toggleTheme() {
+        this.applyTheme(this.theme === "light" ? "dark" : "light");
+    },
+
     /* ============== UI BIND ============== */
     bindUI() {
+        document.querySelectorAll("[data-theme-toggle]").forEach((btn) => {
+            btn.addEventListener("click", () => this.toggleTheme());
+        });
         this.$("nav-toggle")?.addEventListener("click", () => {
             this.$("topnav")?.classList.toggle("open");
         });
@@ -1075,7 +1112,7 @@ const app = {
                 const pending = data.filter((r) => r.status === "pending").length;
                 countEl.textContent = String(data.length);
                 countEl.classList.toggle("hidden", data.length === 0);
-                countEl.classList.toggle("lime", pending > 0);
+                countEl.classList.toggle("accent", pending > 0);
             }
             if (!data.length) {
                 wrap.innerHTML = `<div class="empty-state" style="padding:50px 16px;">

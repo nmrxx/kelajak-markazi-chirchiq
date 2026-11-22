@@ -12,6 +12,7 @@ Chirchiq shahridagi 26 ta maktab koordinatorlari uchun yagona reyting platformas
 - Admin panel: hisobotlarni tasdiqlash/rad etish, ball berish (sabab bilan), xato ball yozuvlarini, ogohlantirishlarni va foydalanuvchilarni o'chirish, tarixni ko'rish.
 - Parolni o'zgartirish — boshqa qurilmalardagi sessiyalar avtomatik yopiladi.
 - Mobil qurilmalar uchun moslashgan interfeys.
+- **Tema almashish**: asosiy ko'k/qorong'u tema va oq tema; tanlov brauzerda saqlanadi, logotip ham temaga moslashadi.
 
 ## Texnologiyalar
 
