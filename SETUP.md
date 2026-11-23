@@ -12,8 +12,8 @@ Chirchiq shahridagi 26 ta maktab koordinatorlari uchun yagona reyting platformas
 - Admin panel: hisobotlarni tasdiqlash/rad etish, ball berish (sabab bilan), xato ball yozuvlarini, ogohlantirishlarni va foydalanuvchilarni o'chirish, tarixni ko'rish.
 - Parolni o'zgartirish — boshqa qurilmalardagi sessiyalar avtomatik yopiladi.
 - Mobil qurilmalar uchun moslashgan interfeys.
-- **Tema almashish**: qora-oq qorong'u tema va oq tema; tanlov brauzerda saqlanadi, logotip ham temaga moslashadi.
-- **Haftalik kalendar**: hisobotlar bo'limida Dushanbadan Shanbagacha kunlar; hisobot yuborilgan kun yashil, bugun uchun eslatma ko'rsatiladi.
+- **Tema almashish**: yumshoq ko'k-qorong'u tema va oq tema; tanlov brauzerda saqlanadi, logotip ham temaga moslashadi.
+- **Haftalik kalendar**: hisobotlar bo'limida Dushanbadan Shanbagacha kunlar; hisobot yuborilgan kun yashil, bugun uchun eslatma ko'rsatiladi. Bosh Koordinator foydalanuvchilar ro'yxatidan istalgan ishtirokchining haftalik kalendarini ochib ko'ra oladi.
 
 ## Texnologiyalar
 

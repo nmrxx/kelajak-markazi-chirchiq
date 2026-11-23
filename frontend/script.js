@@ -15,6 +15,7 @@ const app = {
     reportsFeed: [],
     reportsTotal: 0,
     myReports: [],
+    adminCalendarCache: {},
 
     /* ============== INIT ============== */
     init() {
@@ -59,12 +60,12 @@ const app = {
 
     colorFor(value) {
         const palettes = [
-            ["#4a4a4a", "#111111"],
-            ["#666666", "#262626"],
-            ["#525252", "#1a1a1a"],
-            ["#3d3d3d", "#0a0a0a"],
-            ["#737373", "#333333"],
-            ["#5c5c5c", "#1f1f1f"],
+            ["#5b7cfa", "#2f4bb5"],
+            ["#3ba7a0", "#17615d"],
+            ["#8b6ce0", "#4c3a91"],
+            ["#d1785b", "#8a3f2b"],
+            ["#5b9bd5", "#2d5f8a"],
+            ["#c47ab0", "#7a3f6b"],
         ];
         let hash = 0;
         const text = String(value || "x");
@@ -194,7 +195,7 @@ const app = {
             try { localStorage.setItem("kmc-theme", next); } catch (_) {}
         }
         const meta = document.querySelector('meta[name="theme-color"]');
-        if (meta) meta.setAttribute("content", next === "light" ? "#f6f6f6" : "#090909");
+        if (meta) meta.setAttribute("content", next === "light" ? "#f4f6fa" : "#0e141c");
 
         const label = next === "light"
             ? "Tema: oq. Qorong'u temaga o'tish"
@@ -206,7 +207,7 @@ const app = {
             btn.setAttribute("title", label);
         });
 
-        const logo = next === "light" ? "assets/logo-dark.png?v=20" : "assets/logo.png?v=20";
+        const logo = next === "light" ? "assets/logo-dark.png?v=21" : "assets/logo.png?v=21";
         document.querySelectorAll("[data-logo]").forEach((img) => {
             if (img.getAttribute("src") !== logo) img.setAttribute("src", logo);
         });
@@ -904,15 +905,10 @@ const app = {
         return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
     },
 
-    renderWeeklyCalendar(reports = []) {
-        const card = this.$("weekly-calendar");
-        if (!card) return;
-        if (this.currentUser?.role === "super_admin") {
-            card.classList.add("hidden");
-            return;
-        }
-        card.classList.remove("hidden");
-
+    calendarBody(reports = [], opts = {}) {
+        const title = opts.title || "Haftalik hisobot kalendari";
+        const viewer = opts.viewer || "self";
+        const name = opts.name || "Foydalanuvchi";
         const now = new Date();
         const todayKey = this.dateKey(now);
         const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
@@ -922,14 +918,14 @@ const app = {
         const weekStart = this.dateKey(monday);
         const weekEnd = this.dateKey(sunday);
 
-        const reportDates = new Set();
+        const dayCounts = new Map();
         let weekCount = 0;
         for (const report of reports || []) {
             const date = this.parseDate(report.created_at);
             if (!date) continue;
             const key = this.dateKey(date);
             if (key >= weekStart && key <= weekEnd) {
-                reportDates.add(key);
+                dayCounts.set(key, (dayCounts.get(key) || 0) + 1);
                 weekCount += 1;
             }
         }
@@ -939,18 +935,16 @@ const app = {
             ["Pay", "Payshanba"], ["Jum", "Juma"], ["Shan", "Shanba"],
         ];
         const fmt = (d) => `${String(d.getDate()).padStart(2, "0")}.${String(d.getMonth() + 1).padStart(2, "0")}.${d.getFullYear()}`;
-        this.$("week-range-label").textContent = `${fmt(monday)} — ${fmt(sunday)}`;
-        this.$("week-goal-label").textContent = `Maqsad: 1–2 ta · ${weekCount} ta yuborilgan`;
-
-        this.$("week-grid").innerHTML = labels.map(([short, full], i) => {
+        const days = labels.map(([short, full], i) => {
             const date = new Date(monday);
             date.setDate(monday.getDate() + i);
             const key = this.dateKey(date);
-            const done = reportDates.has(key);
+            const count = dayCounts.get(key) || 0;
+            const done = count > 0;
             const isToday = key === todayKey;
             const past = key < todayKey;
             const state = done ? "done" : isToday ? "today" : "";
-            const mark = done ? "Bor" : past ? "Yo'q" : "Kutilmoqda";
+            const mark = done ? (count > 1 ? `${count} ta` : "Bor") : past ? "Yo'q" : "Kutilmoqda";
             return `<div class="week-day ${state}" title="${full}, ${fmt(date)}">
                 <span class="week-day-name">${short}</span>
                 <span class="week-day-date">${date.getDate()}</span>
@@ -958,13 +952,27 @@ const app = {
             </div>`;
         }).join("");
 
-        const status = this.$("week-status");
-        const todayDone = reportDates.has(todayKey);
+        const todayDone = dayCounts.has(todayKey);
         const inWorkWeek = now.getDay() >= 1 && now.getDay() <= 6;
         let cls = "warn";
         let icon = "fa-circle-exclamation";
         let text = "";
-        if (todayDone) {
+        if (viewer === "admin") {
+            if (todayDone) {
+                cls = "ok";
+                icon = "fa-circle-check";
+                text = `${name} bugun hisobot topshirdi.`;
+            } else if (inWorkWeek) {
+                text = `${name} bugun hech narsa topshirmadi.`;
+                if (weekCount === 0 && now.getDay() === 6) text += " Hafta tugayapti.";
+            } else if (weekCount > 0) {
+                cls = "ok";
+                icon = "fa-circle-check";
+                text = `Hafta yakunlandi. ${name} bu haftada ${weekCount} ta hisobot topshirdi.`;
+            } else {
+                text = `${name} bu hafta hech qanday hisobot topshirmadi.`;
+            }
+        } else if (todayDone) {
             cls = "ok";
             icon = "fa-circle-check";
             text = "Bugun hisobot topshirildi. Rahmat!";
@@ -978,8 +986,72 @@ const app = {
         } else {
             text = "Bu hafta hech qanday hisobot topshirilmadi.";
         }
-        status.className = `week-status ${cls}`;
-        status.innerHTML = `<i class="fa-solid ${icon}"></i><span>${text}</span>`;
+
+        return `<div class="week-head">
+            <div><h3>${title}</h3><p>${fmt(monday)} — ${fmt(sunday)}</p></div>
+            <span class="week-goal">Maqsad: 1–2 ta · ${weekCount} ta yuborilgan</span>
+        </div>
+        <div class="week-grid">${days}</div>
+        <div class="week-status ${cls}"><i class="fa-solid ${icon}"></i><span>${this.esc(text)}</span></div>`;
+    },
+
+    renderWeeklyCalendar(reports = []) {
+        const card = this.$("weekly-calendar");
+        if (!card) return;
+        if (this.currentUser?.role === "super_admin") {
+            card.classList.add("hidden");
+            return;
+        }
+        card.classList.remove("hidden");
+        card.innerHTML = this.calendarBody(reports);
+    },
+
+    renderAdminCalendar(user, reports = []) {
+        const name = user.full_name || user.username || "Foydalanuvchi";
+        const body = this.calendarBody(reports, { title: "Haftalik hisobotlar", viewer: "admin", name });
+        const html = `<div class="week-card admin-week-card">
+            <div class="week-user">
+                ${this.avatarMarkup(user, "avatar-sm")}
+                <div><div class="person-name">${this.esc(name)}</div><div class="person-sub">@${this.esc(user.username)}</div></div>
+            </div>
+            ${body}
+        </div>`;
+        document.querySelectorAll(`[data-calendar-slot="${user.id}"]`).forEach((slot) => {
+            slot.innerHTML = html;
+        });
+    },
+
+    async toggleUserCalendar(user) {
+        const rows = document.querySelectorAll(`[data-calendar-row="${user.id}"]`);
+        const slots = document.querySelectorAll(`[data-calendar-slot="${user.id}"]`);
+        if (!rows.length && !slots.length) return;
+        const isOpen = [...rows, ...slots].some((el) => !el.classList.contains("hidden"));
+
+        document.querySelectorAll("[data-calendar-row]").forEach((el) => el.classList.add("hidden"));
+        document.querySelectorAll("[data-calendar-slot]").forEach((el) => el.classList.add("hidden"));
+        document.querySelectorAll("[data-admin-user]").forEach((el) => el.classList.remove("selected"));
+        if (isOpen) return;
+
+        rows.forEach((el) => el.classList.remove("hidden"));
+        slots.forEach((el) => el.classList.remove("hidden"));
+        document.querySelectorAll(`[data-admin-user="${user.id}"]`).forEach((el) => el.classList.add("selected"));
+
+        if (this.adminCalendarCache[user.id]) {
+            this.renderAdminCalendar(user, this.adminCalendarCache[user.id]);
+            return;
+        }
+        const loading = '<div class="week-card admin-week-card"><div class="empty-state"><i class="fa-solid fa-circle-notch fa-spin"></i>Yuklanmoqda...</div></div>';
+        slots.forEach((el) => { el.innerHTML = loading; });
+        try {
+            const { res, data } = await this.api(`/users/${user.id}/calendar`);
+            if (!res.ok || !data) throw new Error("calendar");
+            this.adminCalendarCache[user.id] = data.reports || [];
+            this.renderAdminCalendar(data.user || user, this.adminCalendarCache[user.id]);
+        } catch (_) {
+            slots.forEach((el) => {
+                el.innerHTML = '<div class="week-card admin-week-card"><div class="empty-state"><i class="fa-solid fa-triangle-exclamation"></i>Kalendarni yuklashda xatolik</div></div>';
+            });
+        }
     },
 
     async loadWeeklyCalendar() {
@@ -1291,8 +1363,16 @@ const app = {
     },
 
     /* ============== ADMIN ============== */
+    bindCalendarButtons(scope, users) {
+        scope.querySelectorAll("[data-calendar-id]").forEach((btn) => {
+            const user = users.find((u) => u.id === parseInt(btn.dataset.calendarId, 10));
+            if (user) btn.addEventListener("click", () => this.toggleUserCalendar(user));
+        });
+    },
+
     async loadAdmin() {
         if (this.currentUser?.role !== "super_admin") return;
+        this.adminCalendarCache = {};
         try {
             const [boardRes, warnRes, statsRes, historyRes] = await Promise.all([
                 this.api("/leaderboard"),
@@ -1326,10 +1406,11 @@ const app = {
                             : `<div style="display:flex;gap:7px;flex-wrap:wrap;">
                                    <button class="btn btn-primary btn-sm" data-score-id="${u.id}"><i class="fa-solid fa-plus"></i> Ball</button>
                                    <button class="btn btn-ghost btn-sm" data-warn-id="${u.id}"><i class="fa-solid fa-triangle-exclamation"></i> Ogohl.</button>
+                                   <button class="btn btn-ghost btn-sm" data-calendar-id="${u.id}" title="Haftalik kalendar"><i class="fa-regular fa-calendar"></i> Kalendar</button>
                                    <button type="button" class="warn-delete" data-user-del="${u.id}" title="Foydalanuvchini o'chirish" aria-label="O'chirish"><i class="fa-solid fa-trash"></i></button>
                                </div>`;
                         return `
-                            <tr>
+                            <tr class="admin-user-row" data-admin-user="${u.id}">
                                 <td>
                                     <div class="person">
                                         ${this.avatarMarkup(u, "avatar-sm")}
@@ -1341,6 +1422,9 @@ const app = {
                                 <td>${u.reports_count || 0}</td>
                                 <td><span class="warn-pill ${u.warns_count ? "" : "zero"}">${u.warns_count}</span></td>
                                 <td>${actions}</td>
+                            </tr>
+                            <tr class="admin-calendar-row hidden" data-calendar-row="${u.id}">
+                                <td colspan="6"><div class="admin-calendar-slot hidden" data-calendar-slot="${u.id}"></div></td>
                             </tr>
                         `;
                     }).join("");
@@ -1357,6 +1441,7 @@ const app = {
                         const user = users.find((u) => u.id === parseInt(btn.dataset.userDel, 10));
                         if (user) btn.addEventListener("click", () => this.openUserDeleteModal(user));
                     });
+                    this.bindCalendarButtons(body, users);
                 }
             }
 
@@ -1370,10 +1455,11 @@ const app = {
                         const actions = self
                             ? '<span class="person-sub">Bu sizning akkauntingiz</span>'
                             : `<button class="btn btn-primary btn-sm" data-score-id="${u.id}"><i class="fa-solid fa-plus"></i> Ball</button>
-                               <button class="btn btn-ghost btn-sm" data-warn-id="${u.id}"><i class="fa-solid fa-triangle-exclamation"></i></button>
+                               <button class="btn btn-ghost btn-sm" data-warn-id="${u.id}" title="Ogohlantirish"><i class="fa-solid fa-triangle-exclamation"></i></button>
+                               <button class="btn btn-ghost btn-sm" data-calendar-id="${u.id}" title="Haftalik kalendar"><i class="fa-regular fa-calendar"></i></button>
                                <button type="button" class="warn-delete" data-user-del="${u.id}" title="Foydalanuvchini o'chirish" aria-label="O'chirish"><i class="fa-solid fa-trash"></i></button>`;
                         return `
-                            <div class="admin-card">
+                            <div class="admin-card" data-admin-user="${u.id}">
                                 <div class="admin-card-head">
                                     ${this.avatarMarkup(u, "avatar-md")}
                                     <div class="admin-card-id">
@@ -1388,6 +1474,7 @@ const app = {
                                     <div><span>Ogohl.</span><strong class="warn-pill ${u.warns_count ? "" : "zero"}">${u.warns_count}</strong></div>
                                 </div>
                                 <div class="admin-card-actions">${actions}</div>
+                                <div class="admin-calendar-slot hidden" data-calendar-slot="${u.id}"></div>
                             </div>
                         `;
                     }).join("");
@@ -1404,6 +1491,7 @@ const app = {
                         const user = users.find((u) => u.id === parseInt(btn.dataset.userDel, 10));
                         if (user) btn.addEventListener("click", () => this.openUserDeleteModal(user));
                     });
+                    this.bindCalendarButtons(cards, users);
                 }
             }
 

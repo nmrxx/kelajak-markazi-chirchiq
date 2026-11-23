@@ -885,6 +885,35 @@ def report_payload(row):
     return item
 
 
+@app.route("/api/users/<int:user_id>/calendar", methods=["GET"])
+def user_calendar(user_id):
+    admin = admin_required()
+    if isinstance(admin, tuple):
+        return admin
+
+    db = get_db()
+    target = db.execute(
+        "SELECT id, username, full_name FROM users WHERE id = ?", (user_id,)
+    ).fetchone()
+    if not target:
+        db.close()
+        return jsonify({"error": "Foydalanuvchi topilmadi"}), 404
+
+    start, end = week_range()
+    rows = db.execute(
+        """SELECT id, title, status, points_awarded, created_at FROM reports
+           WHERE user_id = ? ORDER BY created_at DESC LIMIT 50""",
+        (user_id,),
+    ).fetchall()
+    db.close()
+    return jsonify({
+        "user": dict(target),
+        "week_start": start,
+        "week_end": end,
+        "reports": [dict(r) for r in rows],
+    }), 200
+
+
 @app.route("/api/reports/feed", methods=["GET"])
 def reports_feed():
     u = auth_required()
