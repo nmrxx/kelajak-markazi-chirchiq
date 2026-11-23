@@ -59,12 +59,12 @@ const app = {
 
     colorFor(value) {
         const palettes = [
-            ["#9fef00", "#4f8a00"],
-            ["#8b5cf6", "#4c1d95"],
-            ["#38bdf8", "#075985"],
-            ["#f472b6", "#9d174d"],
-            ["#fbbf24", "#92400e"],
-            ["#34d399", "#065f46"],
+            ["#4a4a4a", "#111111"],
+            ["#666666", "#262626"],
+            ["#525252", "#1a1a1a"],
+            ["#3d3d3d", "#0a0a0a"],
+            ["#737373", "#333333"],
+            ["#5c5c5c", "#1f1f1f"],
         ];
         let hash = 0;
         const text = String(value || "x");
@@ -194,7 +194,7 @@ const app = {
             try { localStorage.setItem("kmc-theme", next); } catch (_) {}
         }
         const meta = document.querySelector('meta[name="theme-color"]');
-        if (meta) meta.setAttribute("content", next === "light" ? "#f3f6fc" : "#080d18");
+        if (meta) meta.setAttribute("content", next === "light" ? "#f6f6f6" : "#090909");
 
         const label = next === "light"
             ? "Tema: oq. Qorong'u temaga o'tish"
@@ -206,7 +206,7 @@ const app = {
             btn.setAttribute("title", label);
         });
 
-        const logo = next === "light" ? "assets/logo-dark.png" : "assets/logo.png";
+        const logo = next === "light" ? "assets/logo-dark.png?v=20" : "assets/logo.png?v=20";
         document.querySelectorAll("[data-logo]").forEach((img) => {
             if (img.getAttribute("src") !== logo) img.setAttribute("src", logo);
         });
@@ -892,8 +892,109 @@ const app = {
     },
 
     loadReports() {
-        if (this.reportTab === "feed") this.loadReportsFeed(false);
-        else this.loadMyReports();
+        if (this.reportTab === "feed") {
+            this.loadReportsFeed(false);
+            this.loadWeeklyCalendar();
+        } else {
+            this.loadMyReports();
+        }
+    },
+
+    dateKey(date) {
+        return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
+    },
+
+    renderWeeklyCalendar(reports = []) {
+        const card = this.$("weekly-calendar");
+        if (!card) return;
+        if (this.currentUser?.role === "super_admin") {
+            card.classList.add("hidden");
+            return;
+        }
+        card.classList.remove("hidden");
+
+        const now = new Date();
+        const todayKey = this.dateKey(now);
+        const monday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+        monday.setDate(monday.getDate() - ((now.getDay() + 6) % 7));
+        const sunday = new Date(monday);
+        sunday.setDate(monday.getDate() + 6);
+        const weekStart = this.dateKey(monday);
+        const weekEnd = this.dateKey(sunday);
+
+        const reportDates = new Set();
+        let weekCount = 0;
+        for (const report of reports || []) {
+            const date = this.parseDate(report.created_at);
+            if (!date) continue;
+            const key = this.dateKey(date);
+            if (key >= weekStart && key <= weekEnd) {
+                reportDates.add(key);
+                weekCount += 1;
+            }
+        }
+
+        const labels = [
+            ["Dush", "Dushanba"], ["Sesh", "Seshanba"], ["Chor", "Chorshanba"],
+            ["Pay", "Payshanba"], ["Jum", "Juma"], ["Shan", "Shanba"],
+        ];
+        const fmt = (d) => `${String(d.getDate()).padStart(2, "0")}.${String(d.getMonth() + 1).padStart(2, "0")}.${d.getFullYear()}`;
+        this.$("week-range-label").textContent = `${fmt(monday)} — ${fmt(sunday)}`;
+        this.$("week-goal-label").textContent = `Maqsad: 1–2 ta · ${weekCount} ta yuborilgan`;
+
+        this.$("week-grid").innerHTML = labels.map(([short, full], i) => {
+            const date = new Date(monday);
+            date.setDate(monday.getDate() + i);
+            const key = this.dateKey(date);
+            const done = reportDates.has(key);
+            const isToday = key === todayKey;
+            const past = key < todayKey;
+            const state = done ? "done" : isToday ? "today" : "";
+            const mark = done ? "Bor" : past ? "Yo'q" : "Kutilmoqda";
+            return `<div class="week-day ${state}" title="${full}, ${fmt(date)}">
+                <span class="week-day-name">${short}</span>
+                <span class="week-day-date">${date.getDate()}</span>
+                <span class="week-day-mark"><i class="fa-solid ${done ? "fa-check" : "fa-minus"}"></i> ${mark}</span>
+            </div>`;
+        }).join("");
+
+        const status = this.$("week-status");
+        const todayDone = reportDates.has(todayKey);
+        const inWorkWeek = now.getDay() >= 1 && now.getDay() <= 6;
+        let cls = "warn";
+        let icon = "fa-circle-exclamation";
+        let text = "";
+        if (todayDone) {
+            cls = "ok";
+            icon = "fa-circle-check";
+            text = "Bugun hisobot topshirildi. Rahmat!";
+        } else if (inWorkWeek) {
+            text = "Bugun hech narsa topshirmadingiz.";
+            if (weekCount === 0 && now.getDay() === 6) text += " Hafta tugayapti — hisobot yuboring.";
+        } else if (weekCount > 0) {
+            cls = "ok";
+            icon = "fa-circle-check";
+            text = `Hafta yakunlandi. Bu haftada ${weekCount} ta hisobot topshirildi.`;
+        } else {
+            text = "Bu hafta hech qanday hisobot topshirilmadi.";
+        }
+        status.className = `week-status ${cls}`;
+        status.innerHTML = `<i class="fa-solid ${icon}"></i><span>${text}</span>`;
+    },
+
+    async loadWeeklyCalendar() {
+        const card = this.$("weekly-calendar");
+        if (!card) return;
+        if (this.currentUser?.role === "super_admin") {
+            card.classList.add("hidden");
+            return;
+        }
+        try {
+            const { res, data } = await this.api("/reports/mine");
+            if (res.ok && Array.isArray(data)) this.renderWeeklyCalendar(data);
+        } catch (_) {
+            card.classList.add("hidden");
+        }
     },
 
     async loadReportsFeed(append = false) {
@@ -1107,6 +1208,7 @@ const app = {
             const { res, data } = await this.api("/reports/mine");
             if (!res.ok || !Array.isArray(data)) throw new Error("mine");
             this.myReports = data;
+            this.renderWeeklyCalendar(data);
             const countEl = this.$("my-report-count");
             if (countEl) {
                 const pending = data.filter((r) => r.status === "pending").length;

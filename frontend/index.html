@@ -3,11 +3,11 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="theme-color" content="#0B1220">
+    <meta name="theme-color" content="#090909">
     <title>Kelajak Markazi Chirchiq</title>
     <meta name="description" content="Kelajak Markazi Chirchiq — maktab koordinatorlari reytingi, hisobotlari va portfoliolari">
 
-    <link rel="icon" type="image/png" href="assets/favicon.png">
+    <link rel="icon" type="image/png" href="assets/favicon.png?v=20">
     <script>
         (function () {
             try {
@@ -20,10 +20,10 @@
     </script>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Geist:wght@300..800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 
-    <link rel="stylesheet" href="style.css?v=19">
+    <link rel="stylesheet" href="style.css?v=20">
 </head>
 <body>
 
@@ -358,6 +358,18 @@
                 </div>
             </div>
 
+            <div class="week-card hidden" id="weekly-calendar">
+                <div class="week-head">
+                    <div>
+                        <h3>Haftalik hisobot kalendari</h3>
+                        <p id="week-range-label">—</p>
+                    </div>
+                    <span class="week-goal" id="week-goal-label">Maqsad: 1–2 ta</span>
+                </div>
+                <div class="week-grid" id="week-grid"></div>
+                <div class="week-status" id="week-status"></div>
+            </div>
+
             <div class="tabs">
                 <button type="button" class="tab active" data-report-tab="feed" onclick="app.switchReportTab('feed')">Lenta</button>
                 <button type="button" class="tab" data-report-tab="mine" onclick="app.switchReportTab('mine')">Mening hisobotlarim <span class="tab-count hidden" id="my-report-count">0</span></button>
@@ -563,6 +575,6 @@
     </main>
 </div>
 
-<script src="script.js?v=19"></script>
+<script src="script.js?v=20"></script>
 </body>
 </html>
